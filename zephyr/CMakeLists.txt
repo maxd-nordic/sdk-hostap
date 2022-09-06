@@ -24,6 +24,7 @@ zephyr_include_directories(
 	${HOSTAP_BASE}/
 	${WPA_SUPPLICANT_BASE}/
 	${COMMON_SRC_BASE}/
+	${ZEPHYR_BASE}/subsys/shell/
 )
 
 zephyr_library_compile_definitions(
@@ -35,7 +36,7 @@ zephyr_library_compile_definitions(
 	CONFIG_WPA_S_ZEPHYR_L2_WIFI_MGMT
 	#CONFIG_NO_STDOUT_DEBUG
 	CONFIG_CTRL_IFACE
-	CONFIG_CTRL_IFACE_UDP
+	CONFIG_CTRL_IFACE_ZEPHYR
 	CONFIG_NO_RANDOM_POOL
 	CONFIG_MBO
 	CONFIG_WNM
@@ -69,7 +70,7 @@ zephyr_library_sources(
 	${COMMON_SRC_BASE}/utils/eloop.c
 	${COMMON_SRC_BASE}/utils/os_zephyr.c
 	${COMMON_SRC_BASE}/utils/radiotap.c
-	#${COMMON_SRC_BASE}/utils/edit_simple.c
+	${COMMON_SRC_BASE}/utils/edit_simple.c
 	${WPA_SUPPLICANT_BASE}/config.c
 	${WPA_SUPPLICANT_BASE}/notify.c
 	${WPA_SUPPLICANT_BASE}/bss.c
@@ -90,6 +91,8 @@ zephyr_library_sources(
 	${WPA_SUPPLICANT_BASE}/wpa_cli.c
 	${WPA_SUPPLICANT_BASE}/mbo.c
 	${WPA_SUPPLICANT_BASE}/wnm_sta.c
+	${WPA_SUPPLICANT_BASE}/ctrl_iface_zephyr.c
+	${WPA_SUPPLICANT_BASE}/wpa_cli_zephyr.c
 	# Zephyr main
 	src/supp_main.c
 	src/utils/wpa_debug.c

@@ -476,6 +476,17 @@ enum wpa_vendor_elem_frame {
 
 /* wpa_supplicant/hostapd control interface access */
 
+#ifdef CONFIG_CTRL_IFACE_ZEPHYR
+/**
+ * wpa_ctrl_open - Open a control interface to wpa_supplicant/hostapd
+ * @sock: one of the pair of UNIX domain socket (socketpair)
+ * Returns: Pointer to abstract control interface data or %NULL on failure
+ *
+ * This function is used to open a control interface to wpa_supplicant/hostapd
+ * using a connected socketpair.
+ */
+struct wpa_ctrl * wpa_ctrl_open(const int sock);
+#else
 /**
  * wpa_ctrl_open - Open a control interface to wpa_supplicant/hostapd
  * @ctrl_path: Path for UNIX domain sockets; ignored if UDP sockets are used.
@@ -487,6 +498,7 @@ enum wpa_vendor_elem_frame {
  * interface need to use matching path configuration.
  */
 struct wpa_ctrl * wpa_ctrl_open(const char *ctrl_path);
+#endif
 
 /**
  * wpa_ctrl_open2 - Open a control interface to wpa_supplicant/hostapd
