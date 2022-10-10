@@ -109,7 +109,7 @@ void wpas_notify_state_changed(struct wpa_supplicant *wpa_s,
 
 	sme_state_changed(wpa_s);
 
-#ifdef ANDROID
+#if defined(ANDROID) || defined(CONFIG_ZEPHYR)
 	wpa_msg_ctrl(wpa_s, MSG_INFO, WPA_EVENT_STATE_CHANGE
 		     "id=%d state=%d BSSID=" MACSTR " SSID=%s",
 		     wpa_s->current_ssid ? wpa_s->current_ssid->id : -1,

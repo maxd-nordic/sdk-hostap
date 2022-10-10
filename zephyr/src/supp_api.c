@@ -6,6 +6,7 @@
 
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <shell_utils.h>
 
 #include "includes.h"
 #include "common.h"
@@ -16,6 +17,7 @@
 
 #include "supp_main.h"
 #include "supp_api.h"
+#include "wpa_cli_zephyr.h"
 
 int cli_main(int, const char **);
 extern struct k_sem wpa_supplicant_ready_sem;
@@ -36,6 +38,8 @@ enum status_thread_state {
 #define CONNECTION_SUCCESS 0
 #define CONNECTION_FAILURE 1
 #define CONNECTION_TERMINATED 2
+#define MAX_CMD_SIZE 512
+#define MAX_ARGS 32
 
 K_MUTEX_DEFINE(wpa_supplicant_mutex);
 
@@ -65,27 +69,21 @@ static int send_wpa_supplicant_dummy_event(void)
 	return send_wpa_supplicant_event(&msg);
 }
 
+int call_wpa_cli(char* cmd)
+{
+	int argc;
+	char buf[MAX_CMD_SIZE];
+	const char *argv[MAX_ARGS];
+
+	os_snprintf(buf, sizeof(buf), "%s", cmd);
+	(void)z_shell_make_argv(&argc, &argv[0], buf, MAX_ARGS);
+
+	return wpa_cli_zephyr_cmd(argc, argv);
+}
 
 static inline struct wpa_supplicant * get_wpa_s_handle(const struct device *dev)
 {
-	struct wpa_supplicant *wpa_s = NULL;
-	int ret = k_sem_take(&wpa_supplicant_ready_sem, K_SECONDS(2));
-
-	if (ret) {
-		wpa_printf(MSG_ERROR, "%s: WPA supplicant not ready: %d", __func__, ret);
-		return NULL;
-	}
-
-	k_sem_give(&wpa_supplicant_ready_sem);
-
-	wpa_s = wpa_supplicant_get_iface(global, dev->name);
-	if (!wpa_s) {
-		wpa_printf(MSG_ERROR,
-		"%s: Unable to get wpa_s handle for %s\n", __func__, dev->name);
-		return NULL;
-	}
-
-	return wpa_s;
+	return get_wpa_s_handle_ifname(dev->name);
 }
 
 static void supp_shell_connect_status(struct k_work *work)
@@ -165,8 +163,7 @@ int zephyr_supp_connect(const struct device *dev,
 		goto out;
 	}
 
-	wpa_supplicant_remove_all_networks(wpa_s);
-
+	call_wpa_cli("remove_network all");
 	ssid = wpa_supplicant_add_network(wpa_s);
 	ssid->ssid = os_zalloc(sizeof(u8) * MAX_SSID_LEN);
 
@@ -288,7 +285,7 @@ int zephyr_supp_disconnect(const struct device *dev)
 	}
 	wpa_supp_api_ctrl.dev = dev;
 	wpa_supp_api_ctrl.requested_op = DISCONNECT;
-	wpas_request_disconnection(wpa_s);
+	call_wpa_cli("disconnect");
 
 out:
 	k_mutex_unlock(&wpa_supplicant_mutex);
