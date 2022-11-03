@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
+#include <stdarg.h>
 
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
@@ -147,6 +148,18 @@ static inline void wpa_supp_restart_status_work(void)
 		K_MSEC(10));
 }
 
+#define CALL_WPA_CLI(fmt, ...)								\
+do 															\
+{															\
+	ret = os_snprintf(buf, sizeof(buf), fmt, ##__VA_ARGS__); \
+	if (ret < 0) {											\
+		printf(fmt);										\
+		printf("Failed to execute: %d\n", ret);				\
+		goto out;											\
+	}														\
+	call_wpa_cli(buf); 										\
+	buf[0] = '\0';											\
+} while (0)
 
 int zephyr_supp_connect(const struct device *dev,
 						struct wifi_connect_req_params *params)
@@ -155,6 +168,8 @@ int zephyr_supp_connect(const struct device *dev,
 	bool pmf = true;
 	struct wpa_supplicant *wpa_s;
 	int ret = 0;
+	struct add_network_resp resp = {0};
+	char buf[MAX_CMD_SIZE];
 
 	k_mutex_lock(&wpa_supplicant_mutex, K_FOREVER);
 
@@ -164,7 +179,48 @@ int zephyr_supp_connect(const struct device *dev,
 	}
 
 	call_wpa_cli("remove_network all");
-	ssid = wpa_supplicant_add_network(wpa_s);
+	ret = wpa_cli_api_add_network(&resp);
+	if (ret) {
+		goto out;
+	}
+
+	printf("NET added: %d\n", resp.network_id);
+#if 1
+	CALL_WPA_CLI("set_network %d ssid \"\"%s\"\"", resp.network_id, params->ssid);
+	if (params->psk) {
+		/* WPA3 */
+		if (params->security == 3) {
+			if (params->sae_password) {
+				CALL_WPA_CLI("set_network %d sae_password \"%s\"",
+					resp.network_id, params->sae_password);
+			} else {
+				CALL_WPA_CLI("set_network %d sae_password \"%s\"",
+					resp.network_id, params->psk);
+			}
+		} else if (params->security == 2) {
+			CALL_WPA_CLI("set_network %d psk \"%s\"",
+				resp.network_id, params->psk);
+			CALL_WPA_CLI("set_network %d key_mgmt WPA-PSK-256",
+				resp.network_id);
+		} else {
+			CALL_WPA_CLI( "set_network %d psk \"%s\"",
+			resp.network_id, params->psk);
+			CALL_WPA_CLI("set_network %d key_mgmt WPA-PSK",
+				resp.network_id);
+		}
+
+		if (params->mfp) {
+			CALL_WPA_CLI("set_network %d ieee80211w 2",
+				resp.network_id);
+		}
+	}
+
+	/* enable and select network */
+	CALL_WPA_CLI("enable_network %d", resp.network_id);
+
+	CALL_WPA_CLI("select_network %d", resp.network_id);
+
+#else
 	ssid->ssid = os_zalloc(sizeof(u8) * MAX_SSID_LEN);
 
 	memcpy(ssid->ssid, params->ssid, params->ssid_length);
@@ -256,7 +312,7 @@ int zephyr_supp_connect(const struct device *dev,
 				      ssid);
 
 	send_wpa_supplicant_dummy_event();
-
+#endif
 	wpa_supp_api_ctrl.dev = dev;
 	wpa_supp_api_ctrl.requested_op = CONNECT;
 	wpa_supp_api_ctrl.connection_timeout = params->timeout;

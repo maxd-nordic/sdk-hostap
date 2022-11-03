@@ -19,9 +19,11 @@
 #include "common/ieee802_11_defs.h"
 
 #include "supp_main.h"
+#include "wpa_cli_zephyr.h"
 #include "ctrl_iface_zephyr.h"
 
 #define CMD_BUF_LEN  4096
+#define MAX_RESPONSE_SIZE 512
 #define DEFAULT_IFNAME "wlan0"
 
 #define VENDOR_ELEM_FRAME_ID \
@@ -49,7 +51,7 @@ static void wpa_cli_msg_cb(char *msg, size_t len)
 	wpa_printf(MSG_INFO, "%s\n", msg);
 }
 
-static int _wpa_ctrl_command(struct wpa_ctrl *ctrl, const char *cmd, int print)
+static int _wpa_ctrl_command(struct wpa_ctrl *ctrl, const char *cmd, int print, char *resp)
 {
 	char buf[CMD_BUF_LEN] = { 0 };
 	size_t len;
@@ -75,6 +77,12 @@ static int _wpa_ctrl_command(struct wpa_ctrl *ctrl, const char *cmd, int print)
 			printf("'%s' command failed.\n", cmd);
 			return -1;
 	}
+
+	if (resp) {
+		/* Remove the LF */
+		os_memcpy(resp, buf, len - 1);
+	}
+
 	if (print) {
 			buf[len] = '\0';
 			printf("%s", buf);
@@ -85,7 +93,12 @@ static int _wpa_ctrl_command(struct wpa_ctrl *ctrl, const char *cmd, int print)
 
 static int wpa_ctrl_command(struct wpa_ctrl *ctrl, const char *cmd)
 {
-	return _wpa_ctrl_command(ctrl, cmd, 1);
+	return _wpa_ctrl_command(ctrl, cmd, 1, NULL);
+}
+
+static int wpa_ctrl_command_resp(struct wpa_ctrl *ctrl, const char *cmd, char *resp)
+{
+	return _wpa_ctrl_command(ctrl, cmd, 1, resp);
 }
 
 
@@ -111,6 +124,36 @@ static int wpa_cli_cmd(struct wpa_ctrl *ctrl, const char *cmd, int min_args,
 		goto out;
 	}
 	ret = wpa_ctrl_command(ctrl, buf);
+
+out:
+	if (buf)
+		os_free(buf);
+
+	return ret;
+}
+
+static int wpa_cli_cmd_resp(struct wpa_ctrl *ctrl, const char *cmd, int min_args,
+		       int argc, char *argv[], char *resp)
+{
+	char * buf = NULL;
+	int ret = 0;
+	if (argc < min_args) {
+		wpa_printf(MSG_INFO, "Invalid %s command - at least %d argument%s "
+		       "required.\n", cmd, min_args,
+		       min_args > 1 ? "s are" : " is");
+		return -1;
+	}
+	buf = os_zalloc(sizeof(char) * CMD_BUF_LEN);
+	if (!buf){
+		printf ("Failed to allocate mem for command buf\n");
+		return -1;
+	}
+	memset(buf, '\0', CMD_BUF_LEN);
+	if (write_cmd(buf, CMD_BUF_LEN, cmd, argc-1, argv) < 0){
+		ret = -1;
+		goto out;
+	}
+	ret = wpa_ctrl_command_resp(ctrl, buf, resp);
 
 out:
 	if (buf)
@@ -3782,4 +3825,26 @@ void wpa_cli_zephyr_deinit(void)
 int wpa_cli_zephyr_cmd(int argc, const char *argv[])
 {
 	return wpa_request(ctrl_conn, argc , (char **) argv);
+}
+
+
+/* Public APIs */
+int wpa_cli_api_add_network(struct add_network_resp *resp)
+{
+	int ret;
+	char buf[MAX_RESPONSE_SIZE] = {0};
+
+	ret =  wpa_ctrl_command_resp(ctrl_conn, "ADD_NETWORK", buf);
+	if (ret) {
+		return ret;
+	}
+
+	ret = sscanf((const char *)buf, "%d", &resp->network_id);
+	if (ret < 0) {
+		wpa_printf(MSG_INFO, "Failed to parse ADD_NETWORK response: %s",
+			strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }
