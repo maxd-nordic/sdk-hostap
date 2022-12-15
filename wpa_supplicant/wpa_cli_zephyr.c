@@ -3848,3 +3848,105 @@ int wpa_cli_api_add_network(struct add_network_resp *resp)
 
 	return 0;
 }
+
+static int wpa_cli_api_set_network(int network_id, char *key, const char *value, bool quoted)
+{
+	int ret;
+	char buf[1024] = {0};
+
+	if (quoted) {
+		ret = snprintk(buf, ARRAY_SIZE(buf), "SET_NETWORK %d %s \"%s\"",
+			       network_id, key, value);
+	} else {
+		ret = snprintk(buf, ARRAY_SIZE(buf), "SET_NETWORK %d %s %s", network_id, key, value);
+	}
+	if (ret < 0) {
+		wpa_printf(MSG_ERROR, "Failed to encode SET_NETWORK request");
+		return ret;
+	}
+
+	return wpa_ctrl_command(ctrl_conn, buf);
+}
+
+int wpa_cli_api_set_network_ssid(int network_id, char *ssid)
+{
+	return wpa_cli_api_set_network(network_id, "ssid", ssid, true);
+}
+
+int wpa_cli_api_set_network_psk(int network_id, char *psk)
+{
+	return wpa_cli_api_set_network(network_id, "psk", psk, true);
+}
+
+int wpa_cli_api_set_network_sae_password(int network_id, char *sae_password)
+{
+	return wpa_cli_api_set_network(network_id, "sae_password", sae_password, true);
+}
+
+int wpa_cli_api_set_network_type(int network_id, const char *type)
+{
+	return wpa_cli_api_set_network(network_id, "key_mgmt", type, false);
+}
+
+int wpa_cli_api_set_network_bssid(int network_id, uint8_t *mac)
+{
+	char bssid[sizeof("00:11:22:33:44:55")] = "";
+
+	snprintk(bssid, sizeof(bssid), "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+		 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+	return wpa_cli_api_set_network(network_id, "bssid", bssid, false);
+}
+
+int wpa_cli_api_set_network_favorite(int network_id)
+{
+	return wpa_cli_api_set_network(network_id, "priority", "1", false);
+}
+
+int wpa_cli_api_set_network_band_2_4_GHz(int network_id)
+{
+	return wpa_cli_api_set_network(network_id, "freq_list", "2412 2417 2422 2427 2432 2437 2442 2447 2452 2457 2462 2467 2472 2484", false);
+}
+
+int wpa_cli_api_set_network_band_5_GHz(int network_id)
+{
+	return wpa_cli_api_set_network(network_id, "freq_list", "5180 5200 5220 5240 5260 5280 5300 5310 5320 5500 5520 5540 5560 5580 5600 5620 5640 5660 5680 5700 5745 5765 5785 5805 5825", false);
+}
+
+int wpa_cli_api_remove_network(int network_id)
+{
+	int ret;
+	char buf[256] = {0};
+
+	ret = snprintk(buf, ARRAY_SIZE(buf), "REMOVE_NETWORK %d", network_id);
+	if (ret < 0) {
+		wpa_printf(MSG_ERROR, "Failed to encode REMOVE_NETWORK request");
+		return ret;
+	}
+
+	return wpa_ctrl_command(ctrl_conn, buf);
+}
+
+int wpa_cli_api_remove_all_networks(void)
+{
+	return wpa_ctrl_command(ctrl_conn, "REMOVE_NETWORK all");
+}
+
+int wpa_cli_api_enable_network(int network_id)
+{
+	int ret;
+	char buf[256] = {0};
+
+	ret = snprintk(buf, ARRAY_SIZE(buf), "ENABLE_NETWORK %d", network_id);
+	if (ret < 0) {
+		wpa_printf(MSG_ERROR, "Failed to encode ENABLE_NETWORK request");
+		return ret;
+	}
+
+	return wpa_ctrl_command(ctrl_conn, buf);
+}
+
+int wpa_cli_api_request_connection(void)
+{
+	return wpa_ctrl_command(ctrl_conn, "REASSOCIATE");
+}
